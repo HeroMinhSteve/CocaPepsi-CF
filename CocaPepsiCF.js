@@ -1,0 +1,492 @@
+(function () {
+  // ==========================================
+  // 1. Helper Functions
+  // ==========================================
+  
+  function $(selector, root = document) {
+    try {
+      return root.querySelector(selector);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function $all(selector, root = document) {
+    try {
+      return Array.from(root.querySelectorAll(selector));
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // ==========================================
+  // 2. Core UI Modification (Convert Form)
+  // ==========================================
+  
+  function convert() {
+    let textarea = document.querySelector('textarea[name="sourceFile"]');
+
+    // If there's no textarea, look for a file input and replace it
+    if (!textarea) {
+      const input = document.querySelector('input[name="sourceFile"]');
+      if (!input) return false;
+
+      textarea = document.createElement('textarea');
+      
+      // Copy over existing attributes (except type)
+      for (const attr of Array.from(input.attributes)) {
+        if (attr.name !== 'type') {
+          textarea.setAttribute(attr.name, attr.value);
+        }
+      }
+
+      // Apply clean, dark-mode styling
+      Object.assign(textarea.style, {
+        minHeight: '150px',
+        width: '100%',
+        padding: '10px',
+        borderRadius: '6px',
+        border: '1px solid #555',
+        background: '#131313',
+        color: '#e3e3e3',
+        boxSizing: 'border-box',
+        resize: 'vertical',
+        outline: 'none',
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        transition: '0.15s border'
+      });
+
+      // Add focus/blur border transitions
+      textarea.addEventListener('focus', () => { textarea.style.border = '1px solid #999'; });
+      textarea.addEventListener('blur', () => { textarea.style.border = '1px solid #555'; });
+
+      textarea.addEventListener('keydown', (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+          event.preventDefault(); // Stop the enter key from creating a new line
+          
+          // Find the submit button and click it programmatically
+          const submitBtn = document.querySelector(
+            '.submitForm input[type="submit"], .submitForm button[type="submit"], input.submit, button.submit'
+          );
+          if (submitBtn) {
+            submitBtn.click();
+          }
+        }
+      });
+      
+      // Swap the input out for the new textarea
+      input.parentNode.replaceChild(textarea, input);
+    }
+
+    // Insert an easter egg text quote
+    const fields = document.querySelectorAll('.field');
+    if (fields.length > 1) {
+      fields[1].innerHTML = 'The winner takes it all<br>The loser has to fall';
+    }
+
+    // Ensure the form opens in a new tab
+    const form = document.querySelector('.submitForm, form.submitForm');
+    if (form) {
+      form.setAttribute('target', '_blank');
+    }
+
+    // Style and position the Submit Button
+    const btn = document.querySelector(
+      '.submitForm input[type="submit"], .submitForm button[type="submit"], input.submit, button.submit'
+    );
+
+    if (btn && textarea) {
+      if (btn.tagName === 'INPUT') {
+        btn.value = 'Here goes nothing';
+      } else {
+        btn.textContent = 'Here goes nothing';
+      }
+
+      const width = Math.floor(textarea.offsetWidth * 0.75);
+
+      Object.assign(btn.style, {
+        display: 'block',
+        width: width + 'px',
+        margin: '12px 0 0 0',
+        height: 'auto',
+        padding: '6px 10px',
+        lineHeight: '1.2',
+        boxSizing: 'border-box',
+        textAlign: 'center',
+        overflow: 'visible',
+        fontSize: Math.max(12, Math.min(15, Math.floor(width / 18))) + 'px',
+        position: 'relative'
+      });
+
+      // Center the button beneath the textarea
+      const tRect = textarea.getBoundingClientRect();
+      const parentRect = btn.parentElement.getBoundingClientRect();
+      const leftOffset = tRect.left - parentRect.left + (textarea.offsetWidth - width) / 2;
+
+      btn.style.left = leftOffset + 'px';
+    }
+
+    return true;
+  }
+
+  // ==========================================
+  // 3. Form Submission & Custom Notices
+  // ==========================================
+  
+  function notices() {
+    function adjustNotice(id) {
+      const noticeElement = document.querySelector('.programTypeNotice');
+      if (!noticeElement) return;
+      
+      noticeElement.textContent = '';
+      
+      // IDs 7 and 31 refer to PyPy submissions
+      if (id === 7 || id === 31) {
+        noticeElement.textContent = 'Almost always, if you send a solution on PyPy, it works much faster';
+      }
+    }
+
+    adjustNotice(54);
+
+    // Listen for language selector changes
+    const selector = document.querySelector("select[name='programTypeId']");
+    if (selector) {
+      selector.addEventListener('change', function () { 
+        adjustNotice(parseInt(this.value || '0', 10)); 
+      });
+    }
+
+    // Handle form submission logic
+    const forms = $all('.submit-form, .submitForm');
+    forms.forEach(form => {
+      form.addEventListener('submit', function () {
+        
+        // Inject background global tokens if present
+        try {
+          const ftaa = form.querySelector("textarea[name='ftaa']");
+          const bfaa = form.querySelector("textarea[name='bfaa']");
+          if (window._ftaa && window._bfaa) {
+            if (ftaa) ftaa.value = window._ftaa;
+            if (bfaa) bfaa.value = window._bfaa;
+          }
+        } catch (e) {}
+
+        // Fix encoding types if sending plain text instead of a file
+        try {
+          if (form.getAttribute('enctype') === 'multipart/form-data') {
+            const sourceFile = form.querySelector(".table-form textarea[name=sourceFile]");
+            if (sourceFile && (!sourceFile.files || sourceFile.files.length === 0)) {
+              form.removeAttribute('enctype');
+            }
+          }
+        } catch (e) {}
+
+        // Temporarily disable submit buttons to prevent accidental double-clicks
+        const btns = $all('button[type="submit"], .submit', form);
+        btns.forEach(b => b.disabled = true);
+        setTimeout(() => btns.forEach(b => b.disabled = false), 1500);
+        
+        return true;
+      });
+    });
+  }
+
+  // ==========================================
+  // Global Keyboard Shortcuts
+  // ==========================================
+  function globalShortcuts() {
+    document.addEventListener('keydown', (event) => {
+      // Check if Alt (or Option on Mac) + 'C' is pressed
+      if (event.altKey && event.key.toLowerCase() === 's') {
+        
+        const textarea = document.querySelector('textarea[name="sourceFile"]');
+        if (textarea) {
+          event.preventDefault(); // Stop any default browser behavior
+          
+          // Smoothly scroll the page so the box is in the center
+          textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          
+          // Focus the cursor inside the box
+          textarea.focus();
+        }
+      }
+    });
+  }
+
+  // ==========================================
+  // 5. Timer & Live Verdict Tracker (with Memory & Reset)
+  // ==========================================
+  function timerAndTracker() {
+    if (!window.location.href.includes('/problem')) return;
+
+    const profileLink = document.querySelector('a[href^="/profile/"]');
+    if (!profileLink) return;
+    const handle = profileLink.textContent.trim();
+
+    // Create the floating UI widget
+    const widget = document.createElement('div');
+    
+    Object.assign(widget.style, {
+      position: 'fixed',
+      bottom: '20px',
+      right: '20px',
+      background: '#131313',
+      border: '1px solid #555',
+      borderRadius: '8px',
+      padding: '8px 16px 16px 16px',
+      color: '#e3e3e3',
+      fontFamily: 'monospace',
+      fontSize: '14px',
+      zIndex: '9999',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '8px',
+      boxShadow: '0 4px 6px rgba(0,0,0,0.5)',
+      resize: 'both',       
+      overflow: 'hidden',   
+      minWidth: '160px',
+      minHeight: '110px'
+    });
+
+    // Added a flex container to put Pause and Reset buttons side-by-side
+    widget.innerHTML = `
+      <div id="cf-drag-handle" style="width: 100%; height: 12px; background: #2a2a2a; border-radius: 4px; cursor: grab; margin-bottom: 4px;"></div>
+      <div id="cf-timer" style="font-size: 18px; font-weight: bold; color: #fff;">00:00</div>
+      <div id="cf-status" style="color: #aaa; font-size: 12px; text-align: center;">Solving...</div>
+      <div style="display: flex; gap: 6px; width: 100%;">
+        <button id="cf-stop-btn" style="flex: 1; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 0; cursor: pointer;">Pause</button>
+        <button id="cf-reset-btn" style="flex: 1; background: #552222; color: #ff9999; border: 1px solid #773333; border-radius: 4px; padding: 4px 0; cursor: pointer;">Reset</button>
+      </div>
+    `;
+    document.body.appendChild(widget);
+
+    // --- Dragging Logic ---
+    const dragHandle = document.getElementById('cf-drag-handle');
+    let isDragging = false;
+    let offsetX, offsetY;
+
+    dragHandle.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      dragHandle.style.cursor = 'grabbing';
+      
+      const rect = widget.getBoundingClientRect();
+      offsetX = e.clientX - rect.left;
+      offsetY = e.clientY - rect.top;
+
+      widget.style.bottom = 'auto';
+      widget.style.right = 'auto';
+      widget.style.left = rect.left + 'px';
+      widget.style.top = rect.top + 'px';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      widget.style.left = (e.clientX - offsetX) + 'px';
+      widget.style.top = (e.clientY - offsetY) + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+      dragHandle.style.cursor = 'grab';
+    });
+
+    // --- Timer, Memory & Toggle Logic ---
+    const timerEl = document.getElementById('cf-timer');
+    const statusEl = document.getElementById('cf-status');
+    const stopBtn = document.getElementById('cf-stop-btn');
+    const resetBtn = document.getElementById('cf-reset-btn');
+
+    const storageKey = `cf_state_${window.location.pathname}`;
+
+    let savedState = JSON.parse(localStorage.getItem(storageKey)) || {
+      seconds: 0,
+      isRunning: false,
+      statusText: 'Solving...',
+      statusColor: '#aaa',
+      isFinished: false
+    };
+
+    let seconds = savedState.seconds;
+    let timerInterval;
+    let isRunning = false;
+
+    function saveState() {
+      localStorage.setItem(storageKey, JSON.stringify({
+        seconds: seconds,
+        isRunning: isRunning,
+        statusText: statusEl.textContent,
+        statusColor: statusEl.style.color,
+        isFinished: stopBtn.style.display === 'none'
+      }));
+    }
+
+    function updateTimerDisplay() {
+      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      timerEl.textContent = `${m}:${s}`;
+    }
+
+    function startTimer() {
+      if (isRunning) return;
+      isRunning = true;
+      statusEl.textContent = 'Solving...';
+      statusEl.style.color = '#aaa';
+      
+      stopBtn.textContent = 'Pause';
+      stopBtn.style.background = '#333'; 
+
+      timerInterval = setInterval(() => {
+        seconds++;
+        updateTimerDisplay();
+        saveState();
+      }, 1000);
+      
+      saveState();
+    }
+
+    function pauseTimer(finalText = 'Paused', color = '#fff', hideButton = false) {
+      isRunning = false;
+      clearInterval(timerInterval);
+      statusEl.textContent = finalText;
+      statusEl.style.color = color;
+      
+      if (hideButton) {
+        stopBtn.style.display = 'none'; 
+      } else {
+        stopBtn.style.display = 'block'; 
+        stopBtn.textContent = 'Resume';
+        stopBtn.style.background = '#2e8b57'; 
+      }
+      
+      saveState();
+    }
+
+    // --- Boot up the saved state ---
+    updateTimerDisplay();
+    statusEl.textContent = savedState.statusText;
+    statusEl.style.color = savedState.statusColor;
+
+    if (savedState.isFinished) {
+      stopBtn.style.display = 'none';
+      timerEl.style.color = '#00ff00';
+    } else if (savedState.isRunning) {
+      startTimer();
+    } else {
+      if (savedState.seconds > 0) pauseTimer(savedState.statusText, savedState.statusColor);
+      else startTimer();
+    }
+
+    // Manual Pause/Resume Button
+    stopBtn.addEventListener('click', () => {
+      if (isRunning) pauseTimer('Paused by User');
+      else startTimer();
+    });
+
+    // Manual Reset Button
+    resetBtn.addEventListener('click', () => {
+      localStorage.removeItem(storageKey);
+      seconds = 0;
+      updateTimerDisplay();
+      timerEl.style.color = '#fff';
+      
+      // If it was completely finished/locked, unlock it
+      if (stopBtn.style.display === 'none') {
+        stopBtn.style.display = 'block';
+      }
+
+      // Ensure the timer is running fresh
+      if (!isRunning) startTimer();
+      else {
+        statusEl.textContent = 'Solving...';
+        statusEl.style.color = '#aaa';
+        saveState();
+      }
+    });
+
+    // --- API Polling on Submit ---
+    const forms = $all('.submit-form, .submitForm');
+    forms.forEach(form => {
+      form.addEventListener('submit', () => {
+        statusEl.textContent = 'Submitted! Waiting for judge...';
+        statusEl.style.color = '#ffcc00'; 
+        saveState();
+        
+        const checker = setInterval(async () => {
+          try {
+            const res = await fetch(`https://codeforces.com/api/user.status?handle=${handle}&from=1&count=1`);
+            const data = await res.json();
+            
+            if (data.status === 'OK' && data.result.length > 0) {
+              const submission = data.result[0];
+              
+              if (submission.verdict === 'TESTING') {
+                statusEl.textContent = `Testing on case ${submission.passedTestCount + 1}...`;
+                return;
+              }
+              
+              clearInterval(checker);
+              
+              if (submission.verdict === 'OK') {
+                pauseTimer('Accepted! 🎉', '#00ff00', true); 
+                timerEl.style.color = '#00ff00';
+                saveState();
+              } else {
+                const verdictText = submission.verdict.replace(/_/g, ' ');
+                statusEl.textContent = verdictText;
+                statusEl.style.color = '#ff3333'; 
+                saveState();
+              }
+            }
+          } catch (e) {
+            console.log('Error checking CF API', e);
+          }
+        }, 3000); 
+      });
+    });
+  }
+
+  // ==========================================
+  // 4. Initialization & Event Listeners
+  // ==========================================
+    
+  function init() { 
+    convert(); 
+    notices(); 
+    globalShortcuts();
+    timerAndTracker();
+  }
+
+  // Run on load
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    init();
+  } else {
+    window.addEventListener('DOMContentLoaded', init, { once: true });
+    window.addEventListener('load', init, { once: true });
+  }
+
+  // Watch the DOM for changes (helps if Codeforces dynamically loads elements)
+  const observer = new MutationObserver(() => {
+    if (document.querySelector('input[name="sourceFile"]')) {
+      convert();
+      notices();
+    }
+  });
+
+  observer.observe(document.documentElement || document.body, { 
+    childList: true, 
+    subtree: true 
+  });
+
+  // Failsafe retry loop just in case the element loads slightly delayed
+  const retry = setInterval(() => {
+    if (convert()) { 
+      notices(); 
+      clearInterval(retry); 
+    }
+  }, 500);
+  
+  setTimeout(() => clearInterval(retry), 10000); // Stop retrying after 10 seconds
+
+})();
