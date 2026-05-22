@@ -215,7 +215,7 @@
   }
 
   // ==========================================
-  // 5. Timer & Live Verdict Tracker (with Memory & Reset)
+  // 5. Timer & Live Verdict Tracker
   // ==========================================
   function timerAndTracker() {
     if (!window.location.href.includes('/problem')) return;
@@ -250,7 +250,6 @@
       minHeight: '110px'
     });
 
-    // Added a flex container to put Pause and Reset buttons side-by-side
     widget.innerHTML = `
       <div id="cf-drag-handle" style="width: 100%; height: 12px; background: #2a2a2a; border-radius: 4px; cursor: grab; margin-bottom: 4px;"></div>
       <div id="cf-timer" style="font-size: 18px; font-weight: bold; color: #fff;">00:00</div>
@@ -270,11 +269,9 @@
     dragHandle.addEventListener('mousedown', (e) => {
       isDragging = true;
       dragHandle.style.cursor = 'grabbing';
-      
       const rect = widget.getBoundingClientRect();
       offsetX = e.clientX - rect.left;
       offsetY = e.clientY - rect.top;
-
       widget.style.bottom = 'auto';
       widget.style.right = 'auto';
       widget.style.left = rect.left + 'px';
@@ -308,6 +305,24 @@
       isFinished: false
     };
 
+    // 🔥 NEW: Page Load Scanner to fix the Refresh Bug 🔥
+    function checkIfAlreadySolved() {
+      const acSpan = document.querySelector('.verdict-accepted');
+      const topAlert = document.querySelector('.alert-success');
+      if (acSpan || (topAlert && topAlert.textContent.toLowerCase().includes('correct solution'))) {
+        return true;
+      }
+      return false;
+    }
+
+    // If the page proves it's solved, force the state to Finished immediately
+    if (checkIfAlreadySolved()) {
+      savedState.isFinished = true;
+      savedState.isRunning = false;
+      savedState.statusText = 'Accepted! 🎉';
+      savedState.statusColor = '#00ff00';
+    }
+
     let seconds = savedState.seconds;
     let timerInterval;
     let isRunning = false;
@@ -333,7 +348,6 @@
       isRunning = true;
       statusEl.textContent = 'Solving...';
       statusEl.style.color = '#aaa';
-      
       stopBtn.textContent = 'Pause';
       stopBtn.style.background = '#333'; 
 
@@ -342,7 +356,6 @@
         updateTimerDisplay();
         saveState();
       }, 1000);
-      
       saveState();
     }
 
@@ -359,11 +372,10 @@
         stopBtn.textContent = 'Resume';
         stopBtn.style.background = '#2e8b57'; 
       }
-      
       saveState();
     }
 
-    // --- Boot up the saved state ---
+    // --- Boot up the state ---
     updateTimerDisplay();
     statusEl.textContent = savedState.statusText;
     statusEl.style.color = savedState.statusColor;
@@ -378,25 +390,18 @@
       else startTimer();
     }
 
-    // Manual Pause/Resume Button
+    // Manual Buttons
     stopBtn.addEventListener('click', () => {
       if (isRunning) pauseTimer('Paused by User');
       else startTimer();
     });
 
-    // Manual Reset Button
     resetBtn.addEventListener('click', () => {
       localStorage.removeItem(storageKey);
       seconds = 0;
       updateTimerDisplay();
       timerEl.style.color = '#fff';
-      
-      // If it was completely finished/locked, unlock it
-      if (stopBtn.style.display === 'none') {
-        stopBtn.style.display = 'block';
-      }
-
-      // Ensure the timer is running fresh
+      if (stopBtn.style.display === 'none') stopBtn.style.display = 'block';
       if (!isRunning) startTimer();
       else {
         statusEl.textContent = 'Solving...';
@@ -427,7 +432,6 @@
               }
               
               clearInterval(checker);
-              
               if (submission.verdict === 'OK') {
                 pauseTimer('Accepted! 🎉', '#00ff00', true); 
                 timerEl.style.color = '#00ff00';
