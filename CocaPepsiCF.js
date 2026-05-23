@@ -215,10 +215,10 @@
   }
 
   // ==========================================
-  // 5. Timer & Live Verdict Tracker
+  // * 5. Timer & Live Verdict Tracker
   // ==========================================
   function timerAndTracker() {
-    if (!window.location.href.includes('/problem')) return;
+    if (!window.location.href.includes('/problem/')) return;
 
     const profileLink = document.querySelector('a[href^="/profile/"]');
     if (!profileLink) return;
@@ -305,7 +305,7 @@
       isFinished: false
     };
 
-    // 🔥 NEW: Page Load Scanner to fix the Refresh Bug 🔥
+    // NEW: Page Load Scanner to fix the Refresh Bug 
     function checkIfAlreadySolved() {
       const acSpan = document.querySelector('.verdict-accepted');
       const topAlert = document.querySelector('.alert-success');
