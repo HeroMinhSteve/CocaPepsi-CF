@@ -2,7 +2,7 @@
   // ==========================================
   // 1. Helper Functions
   // ==========================================
-  
+
   function $(selector, root = document) {
     try {
       return root.querySelector(selector);
@@ -22,7 +22,7 @@
   // ==========================================
   // 2. Core UI Modification (Convert Form)
   // ==========================================
-  
+
   function convert() {
     let textarea = document.querySelector('textarea[name="sourceFile"]');
 
@@ -32,7 +32,7 @@
       if (!input) return false;
 
       textarea = document.createElement('textarea');
-      
+
       // Copy over existing attributes (except type)
       for (const attr of Array.from(input.attributes)) {
         if (attr.name !== 'type') {
@@ -64,7 +64,7 @@
       textarea.addEventListener('keydown', (event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
           event.preventDefault(); // Stop the enter key from creating a new line
-          
+
           // Find the submit button and click it programmatically
           const submitBtn = document.querySelector(
             '.submitForm input[type="submit"], .submitForm button[type="submit"], input.submit, button.submit'
@@ -74,7 +74,7 @@
           }
         }
       });
-      
+
       // Swap the input out for the new textarea
       input.parentNode.replaceChild(textarea, input);
     }
@@ -133,14 +133,14 @@
   // ==========================================
   // 3. Form Submission & Custom Notices
   // ==========================================
-  
+
   function notices() {
     function adjustNotice(id) {
       const noticeElement = document.querySelector('.programTypeNotice');
       if (!noticeElement) return;
-      
+
       noticeElement.textContent = '';
-      
+
       // IDs 7 and 31 refer to PyPy submissions
       if (id === 7 || id === 31) {
         noticeElement.textContent = 'Almost always, if you send a solution on PyPy, it works much faster';
@@ -152,8 +152,8 @@
     // Listen for language selector changes
     const selector = document.querySelector("select[name='programTypeId']");
     if (selector) {
-      selector.addEventListener('change', function () { 
-        adjustNotice(parseInt(this.value || '0', 10)); 
+      selector.addEventListener('change', function () {
+        adjustNotice(parseInt(this.value || '0', 10));
       });
     }
 
@@ -161,7 +161,7 @@
     const forms = $all('.submit-form, .submitForm');
     forms.forEach(form => {
       form.addEventListener('submit', function () {
-        
+
         // Inject background global tokens if present
         try {
           const ftaa = form.querySelector("textarea[name='ftaa']");
@@ -170,7 +170,7 @@
             if (ftaa) ftaa.value = window._ftaa;
             if (bfaa) bfaa.value = window._bfaa;
           }
-        } catch (e) {}
+        } catch (e) { }
 
         // Fix encoding types if sending plain text instead of a file
         try {
@@ -180,13 +180,13 @@
               form.removeAttribute('enctype');
             }
           }
-        } catch (e) {}
+        } catch (e) { }
 
         // Temporarily disable submit buttons to prevent accidental double-clicks
         const btns = $all('button[type="submit"], .submit', form);
         btns.forEach(b => b.disabled = true);
         setTimeout(() => btns.forEach(b => b.disabled = false), 1500);
-        
+
         return true;
       });
     });
@@ -199,14 +199,14 @@
     document.addEventListener('keydown', (event) => {
       // Check if Alt (or Option on Mac) + 'C' is pressed
       if (event.altKey && event.key.toLowerCase() === 's') {
-        
+
         const textarea = document.querySelector('textarea[name="sourceFile"]');
         if (textarea) {
           event.preventDefault(); // Stop any default browser behavior
-          
+
           // Smoothly scroll the page so the box is in the center
           textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          
+
           // Focus the cursor inside the box
           textarea.focus();
         }
@@ -226,7 +226,7 @@
 
     // Create the floating UI widget
     const widget = document.createElement('div');
-    
+
     Object.assign(widget.style, {
       position: 'fixed',
       bottom: '20px',
@@ -244,8 +244,8 @@
       alignItems: 'center',
       gap: '8px',
       boxShadow: '0 4px 6px rgba(0,0,0,0.5)',
-      resize: 'both',       
-      overflow: 'hidden',   
+      resize: 'both',
+      overflow: 'hidden',
       minWidth: '160px',
       minHeight: '110px'
     });
@@ -349,7 +349,7 @@
       statusEl.textContent = 'Solving...';
       statusEl.style.color = '#aaa';
       stopBtn.textContent = 'Pause';
-      stopBtn.style.background = '#333'; 
+      stopBtn.style.background = '#333';
 
       timerInterval = setInterval(() => {
         seconds++;
@@ -364,13 +364,13 @@
       clearInterval(timerInterval);
       statusEl.textContent = finalText;
       statusEl.style.color = color;
-      
+
       if (hideButton) {
-        stopBtn.style.display = 'none'; 
+        stopBtn.style.display = 'none';
       } else {
-        stopBtn.style.display = 'block'; 
+        stopBtn.style.display = 'block';
         stopBtn.textContent = 'Resume';
-        stopBtn.style.background = '#2e8b57'; 
+        stopBtn.style.background = '#2e8b57';
       }
       saveState();
     }
@@ -415,51 +415,167 @@
     forms.forEach(form => {
       form.addEventListener('submit', () => {
         statusEl.textContent = 'Submitted! Waiting for judge...';
-        statusEl.style.color = '#ffcc00'; 
+        statusEl.style.color = '#ffcc00';
         saveState();
-        
+
         const checker = setInterval(async () => {
           try {
             const res = await fetch(`https://codeforces.com/api/user.status?handle=${handle}&from=1&count=1`);
             const data = await res.json();
-            
+
             if (data.status === 'OK' && data.result.length > 0) {
               const submission = data.result[0];
-              
+
               if (submission.verdict === 'TESTING') {
                 statusEl.textContent = `Testing on case ${submission.passedTestCount + 1}...`;
                 return;
               }
-              
+
               clearInterval(checker);
               if (submission.verdict === 'OK') {
-                pauseTimer('Accepted! 🎉', '#00ff00', true); 
+                pauseTimer('Accepted! 🎉', '#00ff00', true);
                 timerEl.style.color = '#00ff00';
                 saveState();
               } else {
                 const verdictText = submission.verdict.replace(/_/g, ' ');
                 statusEl.textContent = verdictText;
-                statusEl.style.color = '#ff3333'; 
+                statusEl.style.color = '#ff3333';
                 saveState();
               }
             }
           } catch (e) {
             console.log('Error checking CF API', e);
           }
-        }, 3000); 
+        }, 3000);
       });
     });
   }
 
   // ==========================================
-  // 4. Initialization & Event Listeners
+  // 5. Contest PDF Downloader
   // ==========================================
-    
-  function init() { 
-    convert(); 
-    notices(); 
+
+  function contestPdfDownloader() {
+    const match = window.location.href.match(/\/(contest|gym)\/(\d+)/);
+    if (!match) return;
+    const type = match[1];
+    const id = match[2];
+
+    // On a contest/gym page (not a specific problem), inject the download button
+    if (!window.location.href.includes('/problem/')) {
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) {
+        const btn = document.createElement('button');
+        btn.textContent = 'Download Contest PDF';
+        Object.assign(btn.style, {
+          display: 'block',
+          width: '100%',
+          padding: '10px 16px',
+          marginBottom: '12px',
+          background: '#1a73e8',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '6px',
+          fontSize: '14px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          textAlign: 'center',
+          transition: '0.2s background'
+        });
+        btn.addEventListener('mouseenter', () => { btn.style.background = '#1558b0'; });
+        btn.addEventListener('mouseleave', () => { btn.style.background = '#1a73e8'; });
+        btn.addEventListener('click', () => {
+          window.open(`https://codeforces.com/${type}/${id}/problems?cocapepsi_print=true`, '_blank');
+        });
+        sidebar.insertBefore(btn, sidebar.firstChild);
+      }
+    }
+
+  }
+
+  // ==========================================
+  // 6. Clean Room PDF Print
+  // ==========================================
+
+  function executeCleanRoomPrint() {
+    if (!window.location.href.includes('cocapepsi_print=true')) return;
+
+    // Create a loading screen covering the page
+    const loading = document.createElement('div');
+    loading.textContent = 'CocaPepsi CF: Preparing Clean Room PDF...';
+    Object.assign(loading.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100%',
+      height: '100%',
+      background: '#1a73e8',
+      color: '#fff',
+      fontSize: '22px',
+      fontWeight: 'bold',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: '99999'
+    });
+    document.body.prepend(loading);
+
+    // Wait for MathJax to fully render all formulas
+    setTimeout(() => {
+      // Extract all individual problems
+      const problems = Array.from(document.querySelectorAll('.problemindexholder'));
+
+      // Build a clean container with only the problems
+      const container = document.createElement('div');
+      problems.forEach(p => container.appendChild(p.cloneNode(true)));
+
+      // Completely overwrite the body with the clean content
+      document.body.innerHTML = '';
+      document.body.appendChild(container);
+
+      // Inject clean print-ready styling
+      const style = document.createElement('style');
+      style.textContent = `
+        body {
+          background: #fff;
+          color: #000;
+          margin: 0;
+          padding: 20px;
+          font-family: sans-serif;
+        }
+        .problemindexholder {
+          display: block;
+          width: 100%;
+          page-break-after: always;
+          margin-bottom: 50px;
+        }
+        .problemindexholder:last-child {
+          page-break-after: auto;
+        }
+        .sample-test {
+          border: 1px solid #ccc;
+          background: #f9f9f9;
+          padding: 10px;
+          page-break-inside: avoid;
+        }
+      `;
+      document.head.appendChild(style);
+
+      window.print();
+    }, 3000);
+  }
+
+  // ==========================================
+  // 7. Initialization & Event Listeners
+  // ==========================================
+
+  function init() {
+    convert();
+    notices();
     globalShortcuts();
     timerAndTracker();
+    contestPdfDownloader();
+    executeCleanRoomPrint();
   }
 
   // Run on load
@@ -478,19 +594,19 @@
     }
   });
 
-  observer.observe(document.documentElement || document.body, { 
-    childList: true, 
-    subtree: true 
+  observer.observe(document.documentElement || document.body, {
+    childList: true,
+    subtree: true
   });
 
   // Failsafe retry loop just in case the element loads slightly delayed
   const retry = setInterval(() => {
-    if (convert()) { 
-      notices(); 
-      clearInterval(retry); 
+    if (convert()) {
+      notices();
+      clearInterval(retry);
     }
   }, 500);
-  
+
   setTimeout(() => clearInterval(retry), 10000); // Stop retrying after 10 seconds
 
 })();
