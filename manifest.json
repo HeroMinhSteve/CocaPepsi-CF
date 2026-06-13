@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
   "name": "CocaPepsi CF",
-  "version": "2.0.1",
-  "description": "Codeforces Helper Extension for Competitive Programming",
+  "version": "2.2.2",
+  "description": "Helper Extension for Competitive Programming",
   "content_scripts": [
     {
       "matches": [
-        "https://codeforces.com/*",
-        "*://*.codeforces.com/*"
+        "*://*.codeforces.com/*",
+        "*://qoj.ac/*"
       ],
       "js": [
         "CocaPepsiCF.js"

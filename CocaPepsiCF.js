@@ -61,19 +61,19 @@
       textarea.addEventListener('focus', () => { textarea.style.border = '1px solid #999'; });
       textarea.addEventListener('blur', () => { textarea.style.border = '1px solid #555'; });
 
-      textarea.addEventListener('keydown', (event) => {
-        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-          event.preventDefault(); // Stop the enter key from creating a new line
-
-          // Find the submit button and click it programmatically
+      // Ctrl + Enter to submit (capture phase to override editor behavior)
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
           const submitBtn = document.querySelector(
-            '.submitForm input[type="submit"], .submitForm button[type="submit"], input.submit, button.submit'
+            '.submit-form input[type="submit"], .submitForm input[type="submit"], button.submit'
           );
           if (submitBtn) {
+            console.log('CocaPepsi CF: Triggering submit...');
             submitBtn.click();
           }
         }
-      });
+      }, true);
 
       // Swap the input out for the new textarea
       input.parentNode.replaceChild(textarea, input);
@@ -566,47 +566,197 @@
   }
 
   // ==========================================
-  // 7. Initialization & Event Listeners
+  // 7. Hide Tags Except Rating
   // ==========================================
 
-  function init() {
+  function hideTagsExceptRating() {
+    const tags = $all('.tag-box');
+    tags.forEach(tag => {
+      if (tag.getAttribute('title') !== 'Difficulty') {
+        tag.style.setProperty('display', 'none', 'important');
+      }
+    });
+  }
+
+  // ==========================================
+  // 8. Show Submission Ratings
+  // ==========================================
+
+  function showSubmissionRatings() {
+    if (!window.location.href.includes('/status')) return;
+
+    const CACHE_KEY = 'cf_problem_ratings';
+    const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+
+    function applyRatings(ratingsMap) {
+      const rows = $all('.status-frame-datatable tr');
+      rows.forEach(row => {
+        const links = $all('a', row);
+        for (const link of links) {
+          const match = link.href.match(/\/(contest|gym)\/(\d+)\/problem\/([A-Za-z0-9]+)/);
+          if (match) {
+            const key = `${match[2]}-${match[3]}`;
+            const rating = ratingsMap[key];
+            if (rating) {
+              const span = document.createElement('span');
+              span.textContent = `(*${rating})`;
+              Object.assign(span.style, {
+                color: '#888',
+                fontSize: '11px',
+                marginLeft: '6px',
+                fontWeight: 'bold'
+              });
+              link.parentElement.appendChild(span);
+            }
+            break;
+          }
+        }
+      });
+    }
+
+    // Check localStorage cache
+    try {
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
+      if (cached && cached.timestamp && (Date.now() - cached.timestamp < CACHE_MAX_AGE)) {
+        applyRatings(cached.data);
+        return;
+      }
+    } catch (e) { }
+
+    // Fetch fresh data from the API
+    fetch('https://codeforces.com/api/problemset.problems')
+      .then(res => res.json())
+      .then(data => {
+        if (data.status !== 'OK') return;
+        const ratingsMap = {};
+        data.result.problems.forEach(p => {
+          if (p.rating) {
+            ratingsMap[`${p.contestId}-${p.index}`] = p.rating;
+          }
+        });
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          data: ratingsMap,
+          timestamp: Date.now()
+        }));
+        applyRatings(ratingsMap);
+      })
+      .catch(e => console.log('Error fetching CF problem ratings', e));
+  }
+
+  // ==========================================
+  // 9. Initialization & Event Listeners
+  // ==========================================
+
+  function initCodeforces() {
     convert();
     notices();
     globalShortcuts();
     timerAndTracker();
     contestPdfDownloader();
     executeCleanRoomPrint();
+    hideTagsExceptRating();
+    showSubmissionRatings();
   }
 
-  // Run on load
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    init();
-  } else {
-    window.addEventListener('DOMContentLoaded', init, { once: true });
-    window.addEventListener('load', init, { once: true });
+  // ==========================================
+  // 10. QOJ Support
+  // ==========================================
+
+  function initQOJ() {
+    const isSubmitPage = window.location.href.endsWith('/submit');
+
+    if (!isSubmitPage) {
+      // State 1 - Problem Page: Alt + S jumps to the submit page
+      document.addEventListener('keydown', (event) => {
+        if (event.altKey && event.key.toLowerCase() === 's') {
+          event.preventDefault();
+          // Find the submit tab link robustly
+          const submitLink = document.querySelector('a[href$="/submit"]')
+            || Array.from(document.querySelectorAll('a')).find(a => a.textContent.trim() === 'Submit');
+          if (submitLink) {
+            submitLink.click();
+          } else {
+            console.log('CocaPepsi CF: No submit link found on QOJ problem page.');
+          }
+        }
+      });
+    } else {
+      // State 2 - Submit Page: Main World Injector
+      // Inject a <script> directly into the page context to bypass the Isolated World sandbox.
+      // This ensures the keydown listener runs in the same world as the Ace/CodeMirror editor.
+      const script = document.createElement('script');
+      script.textContent = `
+        window.addEventListener('keydown', function(e) {
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            var btn = document.querySelector('button[type="submit"], #submit, .ui.primary.button, button.ui.button.primary');
+            if (btn) {
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              console.log('CocaPepsi CF: MAIN WORLD Injector fired! Submitting...');
+              btn.click();
+            }
+          }
+        }, { capture: true });
+      `;
+      (document.documentElement || document.head).appendChild(script);
+      script.remove(); // Clean up the DOM
+
+      // Auto-focus the code editor for instant pasting
+      const editor = document.querySelector('.CodeMirror textarea, textarea.code-editor, textarea[name="answer"]');
+      if (editor) {
+        editor.focus();
+      } else {
+        const cm = document.querySelector('.CodeMirror');
+        if (cm && cm.CodeMirror) {
+          cm.CodeMirror.focus();
+        }
+      }
+    }
   }
 
-  // Watch the DOM for changes (helps if Codeforces dynamically loads elements)
-  const observer = new MutationObserver(() => {
-    if (document.querySelector('input[name="sourceFile"]')) {
-      convert();
-      notices();
+  // ==========================================
+  // 11. Multi-OJ Router
+  // ==========================================
+
+  const hostname = window.location.hostname;
+
+  function boot(initFn) {
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      initFn();
+    } else {
+      window.addEventListener('DOMContentLoaded', initFn, { once: true });
+      window.addEventListener('load', initFn, { once: true });
     }
-  });
+  }
 
-  observer.observe(document.documentElement || document.body, {
-    childList: true,
-    subtree: true
-  });
+  if (hostname.includes('codeforces.com')) {
+    boot(initCodeforces);
 
-  // Failsafe retry loop just in case the element loads slightly delayed
-  const retry = setInterval(() => {
-    if (convert()) {
-      notices();
-      clearInterval(retry);
-    }
-  }, 500);
+    // Watch the DOM for changes (helps if Codeforces dynamically loads elements)
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('input[name="sourceFile"]')) {
+        convert();
+        notices();
+      }
+    });
 
-  setTimeout(() => clearInterval(retry), 10000); // Stop retrying after 10 seconds
+    observer.observe(document.documentElement || document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    // Failsafe retry loop just in case the element loads slightly delayed
+    const retry = setInterval(() => {
+      if (convert()) {
+        notices();
+        clearInterval(retry);
+      }
+    }, 500);
+
+    setTimeout(() => clearInterval(retry), 10000); // Stop retrying after 10 seconds
+  } else if (hostname.includes('qoj.ac')) {
+    boot(initQOJ);
+  }
 
 })();
